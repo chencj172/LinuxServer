@@ -35,7 +35,7 @@ int main(int argc, const char* argv[])
     serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
     serv_addr.sin_port = htons(atoi(argv[2]));
 
-    // 向服务器发送连接请求
+    // 服务器发送连接请求
     if(connect(clnt_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1)
         error_headling("connect() error");
     else 
