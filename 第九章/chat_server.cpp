@@ -151,6 +151,7 @@ int main(int argc, const char* argv[])
             }
             else if(fds[i].revents & POLLOUT)
             {
+                // 如果写缓冲区没写满，并且设置监听POLLOUT事件，该事件会一直触发
                 // 可以向客户端写入数据
                 client&writeclnt = clntMap[fds[i].fd];
                 if(writeclnt.writebuf)
