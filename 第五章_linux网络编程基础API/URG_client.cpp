@@ -23,6 +23,7 @@ int main(int argc, const char* argv[])
     inet_pton(AF_INET, argv[1], &serv_addr.sin_addr);
 
     assert(connect(clnt_sock, (sockaddr*)&serv_addr, sizeof(sockaddr)) != -1);
+    sleep(1);
     send(clnt_sock, "123", strlen("123"), 0);
     // 发送带外数据，但是只有最后一个被当作带外数据
     send(clnt_sock, "abc", strlen("abc"), MSG_OOB);
