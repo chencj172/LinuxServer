@@ -33,6 +33,7 @@ void addfd(const int& epfd, const int& fd)
     epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &event);
 }
 
+// 信号处理函数很快执行完毕，就不会屏蔽之后再传来的信号
 void sig_handler(int sig)
 {
     puts("chufa");
