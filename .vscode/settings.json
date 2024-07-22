@@ -1,6 +1,9 @@
 {
     "files.associations": {
         "new": "cpp",
-        "ostream": "cpp"
+        "ostream": "cpp",
+        "chrono": "cpp",
+        "ctime": "cpp",
+        "unordered_map": "cpp"
     }
 }

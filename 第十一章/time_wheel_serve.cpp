@@ -15,16 +15,17 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <signal.h>
+#include <random>
 #include <unordered_map>
 #include <pthread.h>
 
-#include "list_timer.h"
+#include "time_wheel_timer.h"
 
 const int TIME_OUT = 1;
 const int MAX_EVENTS = 1024;
 static int pipefd[2];
 static int epfd;
-static class sort_timer_list *timer_list = new sort_timer_list();
+static class time_wheel *timer_wheel = new time_wheel();
 std::unordered_map<int, client_data_ptr>mp;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -47,7 +48,6 @@ void sig_handler(int sig)
     // 把信号发送给主循环
     int save_errno = errno;
     send(pipefd[1], (char*)&sig, 1, 0);
-    // std::cout << "alarm sig\n";
     errno = save_errno;
 }
 void addsig(const int& sig)
@@ -68,7 +68,7 @@ void cb_func(client_data* data)
     close(data->sock);
     delete data;
 }
-pthread_t threads[1000];
+
 void* func(void *arg)
 {
     int *listenfd = (int*)arg;
@@ -77,19 +77,20 @@ void* func(void *arg)
     clnt_data->sock = accept(*listenfd, (sockaddr*)&clnt_data->address, &len);
     assert(clnt_data->sock != -1);
     addfd(clnt_data->sock);
-    util_timer *timer = new util_timer();
     int random_num = random() % 30;
-    timer->expire = time(NULL) + random_num;
-    timer->user_data = clnt_data;
+    if(random_num < 20)
+    random_num = 20;
+    pthread_mutex_lock(&mutex);
+    tw_timer *timer = timer_wheel->add_timer(random_num);
+    pthread_mutex_unlock(&mutex);
+    timer->clnt_data = clnt_data;
     timer->cb_func = cb_func;
     clnt_data->timer = timer;
     // std::cout << "client " << ntohs(clnt_data->address.sin_port) << " connected...\n";
-    pthread_mutex_lock(&mutex);
-    timer_list->add_timer(timer);
-    pthread_mutex_unlock(&mutex);
     mp.insert(std::pair<int, client_data_ptr>(clnt_data->sock, clnt_data));
     return NULL;
 }
+pthread_t threads[1000];
 int index_pos = 0;
 int main(int argc, const char* argv[])
 {
@@ -140,19 +141,18 @@ int main(int argc, const char* argv[])
                 // 有新的客户连接
                 pthread_create(&threads[index_pos], NULL, func, (void*)&listenfd);
                 pthread_detach(threads[index_pos++]);
+                std::cout << "index_pos : " << index_pos << std::endl;
                 // client_data *clnt_data = new client_data();
                 // socklen_t len = sizeof(clnt_data->address);
                 // clnt_data->sock = accept(listenfd, (sockaddr*)&clnt_data->address, &len);
                 // assert(clnt_data->sock != -1);
                 // addfd(clnt_data->sock);
-                // util_timer *timer = new util_timer();
                 // int random_num = random() % 30;
-                // timer->expire = time(NULL) + random_num;
-                // timer->user_data = clnt_data;
+                // tw_timer *timer = timer_wheel->add_timer(random_num);
+                // timer->clnt_data = clnt_data;
                 // timer->cb_func = cb_func;
                 // clnt_data->timer = timer;
                 // // std::cout << "client " << ntohs(clnt_data->address.sin_port) << " connected...\n";
-                // timer_list->add_timer(timer);
                 // mp.insert(std::pair<int, client_data_ptr>(clnt_data->sock, clnt_data));
             }
             else if(events[i].data.fd == pipefd[0])
@@ -166,7 +166,7 @@ int main(int argc, const char* argv[])
                     switch(buf[j])
                     {
                         case SIGALRM:
-                            timer_list->tick();
+                            timer_wheel->tick();
                             alarm(TIME_OUT);
                             break;
                         case SIGTERM:
@@ -189,7 +189,7 @@ int main(int argc, const char* argv[])
                         // 读发生错误
                         cb_func(clnt_data);
                         if(clnt_data->timer)
-                        timer_list->delete_timer(clnt_data->timer);
+                        timer_wheel->delete_timer(clnt_data->timer);
                     }
                 }
                 else if(len == 0)
@@ -197,13 +197,13 @@ int main(int argc, const char* argv[])
                     // 对方关闭连接
                     cb_func(clnt_data);
                     if(clnt_data->timer)
-                    timer_list->delete_timer(clnt_data->timer);
+                    timer_wheel->delete_timer(clnt_data->timer);
                 }
                 else
                 {
                     std::cout << "recv data from client " << ntohs(clnt_data->address.sin_port) << " is : " << clnt_data->buf << std::endl;
-                    clnt_data->timer->expire = time(NULL) + 3 * TIME_OUT;
-                    timer_list->adjust_timer(clnt_data->timer);
+                    // clnt_data->timer->expire = time(NULL) + 3 * TIME_OUT;
+                    // timer_list->adjust_timer(clnt_data->timer);
                 }
             }
         }
@@ -212,6 +212,6 @@ int main(int argc, const char* argv[])
     close(listenfd);
     close(pipefd[0]);
     close(pipefd[1]);
-    delete timer_list;
+    delete timer_wheel;
     return 0;
 }

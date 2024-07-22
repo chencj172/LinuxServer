@@ -10,8 +10,16 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <chrono>
 
 const int BUF_SIZE = 64;
+
+int64_t getCurrentMillis() {
+    auto now = std::chrono::system_clock::now();
+    auto duration = now.time_since_epoch();
+    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    return millis;
+}
 
 class util_timer;
 // 用户数据结构
@@ -63,7 +71,11 @@ public:
             head = tail = node;
             return ;
         }
+        int64_t pre_time = getCurrentMillis();
         add_timer_util(node);
+        add_time += getCurrentMillis() - pre_time;
+        timer_count++;
+        std::cout << "addtime : " << add_time << ",count : " << timer_count << std::endl;
     }
 
     // 调整定时器
@@ -72,6 +84,7 @@ public:
         if(!node) return ;
 
         util_timer* tmp = node->next;
+
         // 不需要调整
         if(!tmp || (node->expire < tmp->expire))
         return ;
@@ -125,7 +138,7 @@ public:
     {
         if(!head) return ;
 
-        puts("timer tick");
+        // puts("timer tick");
         time_t cur = time(NULL);
         util_timer* tmp = head;
 
@@ -134,7 +147,10 @@ public:
             if(!tmp) break;
 
             if(tmp->expire <= cur)
-            tmp->cb_func(tmp->user_data);
+            {
+                // std::cout << "client disconnected...\n";
+                tmp->cb_func(tmp->user_data);
+            }
             else break;
 
             delete_timer(tmp);
@@ -144,6 +160,9 @@ public:
 private:
     util_timer* head;
     util_timer* tail;
+
+    int64_t add_time = 0;
+    int timer_count = 0;
     void add_timer_util(util_timer* node)
     {
         util_timer* tmp = head;
